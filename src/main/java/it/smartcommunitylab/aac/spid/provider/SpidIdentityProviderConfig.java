@@ -418,11 +418,13 @@ public class SpidIdentityProviderConfig extends AbstractIdentityProviderConfig<S
         List<SigningCredential> signingCredentialList = SigningCredentialHelper.signingCredentialList(configMap, purpose);
 
         for (SigningCredential signingCredential : signingCredentialList) {
-            // only RSA keys are supported
-            Saml2X509Credential credential = SigningCredentialHelper.createSaml2X509Credential(
+            if (StringUtils.hasText(signingCredential.getSigningKey()) && StringUtils.hasText(signingCredential.getSigningCertificate())) {
+                // only RSA keys are supported
+                Saml2X509Credential credential = SigningCredentialHelper.createSaml2X509Credential(
                     signingCredential.getSigningKey(),
                     signingCredential.getSigningCertificate());
-            builder.signingX509Credentials(c -> c.add(credential));
+                builder.signingX509Credentials(c -> c.add(credential));
+            }
         }
 
         return builder;
@@ -431,11 +433,38 @@ public class SpidIdentityProviderConfig extends AbstractIdentityProviderConfig<S
     // Performs an upfront validation of all SPID cryptographic contexts to prevent runtime failures.
     private void validateSigningCredentials() {
         try {
-            SigningCredentialHelper.signingCredentialList(configMap, SigningCredentialHelper.CredentialPurpose.AUTH_REQUEST);
-            SigningCredentialHelper.signingCredentialList(configMap, SigningCredentialHelper.CredentialPurpose.METADATA_SIGNATURE);
-            SigningCredentialHelper.signingCredentialList(configMap, SigningCredentialHelper.CredentialPurpose.METADATA_EXPOSURE);
+            // 1. Validate AUTH_REQUEST
+            List<SigningCredential> authRequestCredentialList = SigningCredentialHelper.signingCredentialList(configMap, SigningCredentialHelper.CredentialPurpose.AUTH_REQUEST);
+            ensureNotEmpty(authRequestCredentialList);
+
+            // 2. Validate METADATA_SIGNATURE
+            List<SigningCredential> metadataSignatureCredentialList = SigningCredentialHelper.signingCredentialList(configMap, SigningCredentialHelper.CredentialPurpose.METADATA_SIGNATURE);
+            ensureNotEmpty(metadataSignatureCredentialList);
+
+            // 3. Validate METADATA_EXPOSURE
+            List<SigningCredential> metadataExposureCredentialList = SigningCredentialHelper.signingCredentialList(configMap, SigningCredentialHelper.CredentialPurpose.METADATA_EXPOSURE);
+            ensureNotEmpty(metadataExposureCredentialList);
+
+            Set<String> seenCertificates = new HashSet<>();
+            for (SigningCredential signingCredential : metadataExposureCredentialList) {
+                if (StringUtils.hasText(signingCredential.getSigningKey()) && StringUtils.hasText(signingCredential.getSigningCertificate())) {
+                    String normalizedCert = signingCredential.getSigningCertificate().replaceAll("\\s+", "");
+                    if (!seenCertificates.add(normalizedCert)) {
+                        throw new IllegalArgumentException("CRITICAL: Duplicate certificates found in the METADATA_EXPOSURE list!");
+                    }
+                }
+            }
         } catch (IOException | CertificateException e) {
-            throw new IllegalArgumentException("failed to validate SigningCredentials: " + e.getMessage(), e);
+            throw new IllegalArgumentException("Failed to validate SigningCredentials: " + e.getMessage(), e);
+        }
+    }
+
+    // If no valid credentials were found/processed,
+    private void ensureNotEmpty(List<SigningCredential> signingCredentialList) {
+        if (signingCredentialList.isEmpty()) {
+            throw new IllegalArgumentException("CRITICAL: Missing SPID signing credentials. " +
+                "The Service Provider cannot establish a Circle of Trust with IdPs " +
+                "as required by AgID technical regulations (Binding HTTP-POST/Redirect).");
         }
     }
 

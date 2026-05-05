@@ -12,9 +12,7 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class SigningCredentialHelper {
 
@@ -52,13 +50,6 @@ public class SigningCredentialHelper {
             }
         } else {
             signingCredentialList.addAll(populateForMetadataExposure(allCredentials, configMap.getSigningKey(), configMap.getSigningCertificate()));
-        }
-
-        // 4. Final safety check: if no valid credentials were found/processed,
-        if (signingCredentialList.isEmpty()) {
-            throw new IllegalArgumentException("CRITICAL: Missing SPID signing credentials. " +
-                "The Service Provider cannot establish a Circle of Trust with IdPs " +
-                "as required by AgID technical regulations (Binding HTTP-POST/Redirect).");
         }
 
         return signingCredentialList;
@@ -106,21 +97,10 @@ public class SigningCredentialHelper {
     // Collects all unique public certificates for Metadata exposure.
     // Injects dummy keys where private keys are missing to satisfy framework requirements.
     private static List<SigningCredential> populateForMetadataExposure(List<SigningCredential> allCredentials, String standaloneKey, String standaloneCertificate) {
-        List<SigningCredential> metadataSigningCredentialList = new ArrayList<>();
-
         List<SigningCredential> listToProcess = new ArrayList<>();
         listToProcess.add(new SigningCredential(null, standaloneKey, standaloneCertificate));
         listToProcess.addAll(allCredentials);
-
-        Set<String> uniqueCertificateSet = new HashSet<>();
-
-        listToProcess.stream()
-            .filter(c -> c != null && StringUtils.hasText(c.getSigningCertificate()))
-            // Normalize the string (strip whitespace) and check for duplicates
-            .filter(c -> uniqueCertificateSet.add(c.getSigningCertificate().replaceAll("\\s+", "")))
-            .forEach(metadataSigningCredentialList::add);
-
-        return metadataSigningCredentialList;
+        return listToProcess;
     }
 
     // Returns a descriptive string based on the credential's purpose.
