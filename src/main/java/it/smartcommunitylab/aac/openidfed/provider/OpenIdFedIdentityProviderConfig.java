@@ -40,9 +40,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.util.StringUtils;
+import org.springframework.web.util.UriComponentsBuilder;
 
 public class OpenIdFedIdentityProviderConfig
     extends AbstractIdentityProviderConfig<OpenIdFedIdentityProviderConfigMap> {
@@ -56,6 +58,9 @@ public class OpenIdFedIdentityProviderConfig
 
     @JsonIgnore
     private transient OpenIdProviderDiscoveryService providerService;
+
+    private transient OpenIdFedIdentityProviderStatusMap statusMap;
+    private String baseUrl;
 
     @JsonIgnore
     private transient OpenIdFedClientRegistrationRepository clientRegistrationRepository;
@@ -86,6 +91,21 @@ public class OpenIdFedIdentityProviderConfig
     @SuppressWarnings("unused")
     private OpenIdFedIdentityProviderConfig() {
         super();
+    }
+
+    public void setBaseUrl(String baseUrl) {
+        this.baseUrl = baseUrl;
+    }
+
+    public OpenIdFedIdentityProviderStatusMap getStatusMap() {
+        if (statusMap == null) {
+            statusMap = new OpenIdFedIdentityProviderStatusMap();
+            statusMap.setEntityConfigurationUrl(populateBaseUrl(getEntityConfigurationUrl()));
+            // we process the clientid as url to support the baseurl substitution
+            statusMap.setClientId(populateBaseUrl(getClientId()));
+        }
+
+        return statusMap;
     }
 
     public EntityStatementResolver getEntityStatementResolver() {
@@ -129,6 +149,16 @@ public class OpenIdFedIdentityProviderConfig
         return clientRegistrationRepository;
     }
 
+    private String populateBaseUrl(String template) {
+        if (baseUrl != null) {
+            UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(template);
+            return builder
+                .buildAndExpand(Map.of("baseUrl", baseUrl))
+                .toUriString();
+        }
+        return null;
+    }
+
     public String getClientId() {
         //if set use configMap value - note: should match urls
         if (StringUtils.hasText(configMap.getClientId())) {
@@ -137,6 +167,10 @@ public class OpenIdFedIdentityProviderConfig
 
         //build url as base to be inflated
         return "{baseUrl}/auth/" + getAuthority() + "/metadata/" + getProvider();
+    }
+
+    public String getEntityConfigurationUrl() {
+        return "{baseUrl}/auth/" + getAuthority() + "/metadata/" + getProvider() + "/.well-known/openid-federation";
     }
 
     public String getRepositoryId() {
