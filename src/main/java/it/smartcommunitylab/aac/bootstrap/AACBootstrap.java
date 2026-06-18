@@ -1211,6 +1211,21 @@ public class AACBootstrap {
                                     //                            // TODO refactor with a single method
                                     //                            // TODO refactor password services over repo
                                     //                            // TODO support webauthn
+                                            // __Frontend__: La validazione è generalmente efficace (creazione
+                                            // account/modifica password), ma presenta un'eccezione nel flusso di
+                                            // "aggiunta password dopo rimozione", che permette l'invio di dati non
+                                            // conformi.
+                                            // __Backend__: I test hanno confermato che il backend blocca correttamente
+                                            // le password non conformi quando la richiesta riesce a superare il
+                                            // frontend. La logica in `PasswordCredentialsService` è quindi corretta.
+                                            // __Bootstrap__: Il problema mi sembra localizzato esclusivamente nel
+                                            // processo di bootstrap, che bypassa la validazione scrivendo direttamente
+                                            // nel database.
+
+                                            // Vorrei capire se sia opportuno mantenere questo bypass per facilitare
+                                            // l'inizializzazione del sistema o se, per coerenza e sicurezza, sia
+                                            // preferibile allineare il bootstrap alle policy di password del Realm.
+
                                     //                            if ("credentials_password".equals(c.getType())) {
                                     //                                // cast
                                     //                                InternalUserPassword uc = (InternalUserPassword) c;
